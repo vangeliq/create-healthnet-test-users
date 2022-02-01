@@ -1,0 +1,9 @@
+
+create-healthnet-test-users/
+pom-sample.html
+*.class
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/misc.xml
+src/main/java/source.java
+.idea/vcs.xml

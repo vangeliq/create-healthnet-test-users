@@ -39,17 +39,40 @@ public class Main {
         CSVReader reader = new CSVReader(new FileReader(inputFile), ',', '"', 0);
         List<String[]> allRows = reader.readAll();
 
+        // todo: adding users
         for (String[] row : allRows) {
             addUser(row,usersResource);
+            setUserPassword(row[0],row[1],usersResource);
 
+        }
+        printUserList(usersResource);
+
+
+        //todo: deleting users
+        for (String[] row: allRows) {
+//            deleteUser(row[0], usersResource);
         }
         printUserList(usersResource);
 
     }
 
-    /*
-    userinfo is: username, password, IDP, role1, role2
-    */
+
+
+
+    // HELPERS:
+
+    // userinfo is: username, password, IDP, role1, role2
+    private static String getUserID(String userName, UsersResource usersResource) throws Exception{
+        List<UserRepresentation> users = usersResource.search(userName);
+        if(users.size() > 1){
+            throw new Exception("error: more than 1 user found");
+        }else if (users.size() == 0){
+            throw new Exception("no users with that username found");
+        } else {
+            return users.get(0).getId();
+        }
+    }
+
     private static void addUser(String[] userInfo, UsersResource usersResource) {
         UserRepresentation user = new UserRepresentation();
         user.setEnabled(true);
@@ -63,12 +86,31 @@ public class Main {
         System.out.printf("User created with userId: %s%n", userId);
     }
 
-
-    public static void setUserPassword(String userId) {
-        //todo: implement this
+    // todo: should throw exception instead?
+    private static void deleteUser(String userName, UsersResource usersResource) {
+        String userID;
+        try {
+            userID = getUserID(userName, usersResource);
+            usersResource.delete(userID);
+        } catch (Exception e) {e.printStackTrace();}
     }
 
-    ;
+    public static void setUserPassword(String userName, String password, UsersResource usersResource) {
+        try{
+            String userID = getUserID(userName,usersResource);
+            UserResource userResource =  usersResource.get(userID);
+
+            CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
+            credentialRepresentation.setType(CredentialRepresentation.PASSWORD);
+            credentialRepresentation.setCredentialData(password);
+            credentialRepresentation.setValue(password);
+            credentialRepresentation.setSecretData(password);
+
+            userResource.resetPassword(credentialRepresentation);
+            System.out.println(userName + "'s password has been reset.");
+        }catch (Exception e){e.printStackTrace();
+        }
+    }
 
     public static void addRoleToUser() {
 
@@ -76,10 +118,12 @@ public class Main {
 
     public static void printUserList(UsersResource usersResource) {
         List<UserRepresentation> users = usersResource.list();
+        System.out.println("list of all users:");
+
         for (UserRepresentation user : users) {
             String name = user.getUsername();
             String id = user.getId();
-            System.out.println(name + " id: " + id);
+            System.out.println("\t" + name + " id: " + id);
         }
     }
 }
