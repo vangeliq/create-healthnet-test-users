@@ -2,13 +2,8 @@ import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
-import org.keycloak.admin.client.resource.RealmResource;
-import org.keycloak.admin.client.resource.UserResource;
-import org.keycloak.admin.client.resource.UsersResource;
-import org.keycloak.representations.idm.ClientRepresentation;
-import org.keycloak.representations.idm.CredentialRepresentation;
-import org.keycloak.representations.idm.RoleRepresentation;
-import org.keycloak.representations.idm.UserRepresentation;
+import org.keycloak.admin.client.resource.*;
+import org.keycloak.representations.idm.*;
 
 import javax.ws.rs.core.Response;
 import java.io.FileReader;
@@ -43,41 +38,25 @@ public class Main {
         for (String[] row : allRows) {
             addUser(row,usersResource);
             setUserPassword(row[0],row[1],usersResource);
-
+            addUserIDP(row[0],row[2],usersResource);
         }
         printUserList(usersResource);
 
 
         //todo: deleting users
-        for (String[] row: allRows) {
-//            deleteUser(row[0], usersResource);
-        }
+//        for (String[] row: allRows) deleteUser(row[0], usersResource);
         printUserList(usersResource);
-
     }
 
 
 
 
-    // HELPERS:
-
-    // userinfo is: username, password, IDP, role1, role2
-    private static String getUserID(String userName, UsersResource usersResource) throws Exception{
-        List<UserRepresentation> users = usersResource.search(userName);
-        if(users.size() > 1){
-            throw new Exception("error: more than 1 user found");
-        }else if (users.size() == 0){
-            throw new Exception("no users with that username found");
-        } else {
-            return users.get(0).getId();
-        }
-    }
 
     private static void addUser(String[] userInfo, UsersResource usersResource) {
         UserRepresentation user = new UserRepresentation();
         user.setEnabled(true);
         user.setUsername(userInfo[0]);
-        user.setAttributes(Collections.singletonMap("origin", Arrays.asList("demo")));
+//        user.setAttributes(Collections.singletonMap("origin", Arrays.asList("demo")));
 
         Response response = usersResource.create(user);
         System.out.printf("Response: %s %s%n", response.getStatus(), response.getStatusInfo());
@@ -102,9 +81,7 @@ public class Main {
 
             CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
             credentialRepresentation.setType(CredentialRepresentation.PASSWORD);
-            credentialRepresentation.setCredentialData(password);
             credentialRepresentation.setValue(password);
-            credentialRepresentation.setSecretData(password);
 
             userResource.resetPassword(credentialRepresentation);
             System.out.println(userName + "'s password has been reset.");
@@ -112,8 +89,33 @@ public class Main {
         }
     }
 
-    public static void addRoleToUser() {
+    private static void addUserIDP(String userName, String idp, UsersResource usersResource) {
+        try{
+            String userID = getUserID(userName,usersResource);
+            UserResource userResource =  usersResource.get(userID);
 
+            FederatedIdentityRepresentation federatedIdRepresentation = new FederatedIdentityRepresentation();
+            federatedIdRepresentation.setIdentityProvider(idp);
+            federatedIdRepresentation.setUserId(userName);
+            federatedIdRepresentation.setUserName(userName);
+
+            userResource.addFederatedIdentity(idp,federatedIdRepresentation);
+            System.out.println(federatedIdRepresentation.getIdentityProvider() + " added to " + userName + "'s profile.");
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    // userinfo is: username, password, IDP, role1, role2
+    private static String getUserID(String userName, UsersResource usersResource) throws Exception{
+        List<UserRepresentation> users = usersResource.search(userName);
+        if(users.size() > 1){
+            throw new Exception("error: more than 1 user found");
+        }else if (users.size() == 0){
+            throw new Exception("no users with that username found");
+        } else {
+            return users.get(0).getId();
+        }
     }
 
     public static void printUserList(UsersResource usersResource) {
