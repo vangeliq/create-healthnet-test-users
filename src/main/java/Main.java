@@ -5,10 +5,8 @@ import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.*;
 import org.keycloak.representations.idm.*;
 
-import javax.management.relation.Role;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import au.com.bytecode.opencsv.CSVReader;
 
@@ -76,7 +74,7 @@ public class Main {
 
     // todo: what to do if user is already there
     // adds user to realm, and updates id value on the user's UserRepresentation
-    private static void addUser(UserRepresentation user, UsersResource usersResource) {
+    private static void addUserToKeyCloak(UserRepresentation user, UsersResource usersResource) {
         try {
             Response response = usersResource.create(user);
             System.out.printf("Response: %s %s%n", response.getStatus(), response.getStatusInfo());
@@ -90,50 +88,13 @@ public class Main {
     }
 
     // todo: should throw exception instead? should it ignore if not found?
-    private static void deleteUser(String userName, UsersResource usersResource) {
+    private static void deleteUserFromKeyCloak(String userName, UsersResource usersResource) {
         String userID;
         try {
             userID = getUserID(userName, usersResource);
             usersResource.delete(userID);
         } catch (Exception e) {
 //            e.printStackTrace();
-        }
-    }
-
-    // todo: what to do if user not found
-    public static void setUserPassword(User user, UsersResource usersResource) {
-        try{
-            String userID = getUserID(user,usersResource);
-            UserResource userResource =  usersResource.get(userID);
-
-            CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
-            credentialRepresentation.setType(CredentialRepresentation.PASSWORD);
-            credentialRepresentation.setValue(user.getPassword());
-
-            userResource.resetPassword(credentialRepresentation);
-            System.out.println(user.getUserRepresentation().getUsername() + "'s password has been reset.");
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-    }
-
-    // todo: what to do if user not found
-    private static void addUserRealmRole(String userName, String role, RealmResource realmResource) {
-        try {
-            String userID = getUserID(userName, realmResource.users());
-
-            RolesResource rolesResource =  realmResource.roles();
-            List<RoleRepresentation> roleRepresentationList =  rolesResource.list(role,true);
-            if(roleRepresentationList.size() > 1){ throw new Exception("more than 1 option found");
-            }else if (roleRepresentationList.size() <1){ throw new Exception("role not found");
-            }else{
-                UserResource userResource = realmResource.users().get(userID);
-                RoleMappingResource roleMappingResource =  userResource.roles();
-                RoleScopeResource realmRoleScopeResource = roleMappingResource.realmLevel();
-                realmRoleScopeResource.add(roleRepresentationList);
-            }
-        }catch(Exception e){
-            e.printStackTrace();
         }
     }
 
@@ -197,7 +158,7 @@ public class Main {
             return users.get(0).getId();
         }
     }
-    public static void printUserList(UsersResource usersResource) {
+    private static void printUserList(UsersResource usersResource) {
         List<UserRepresentation> users = usersResource.list();
         System.out.println("list of all users:");
 
