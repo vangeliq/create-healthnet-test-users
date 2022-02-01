@@ -43,6 +43,7 @@ public class Main {
             setUserPassword(entry[0],entry[1],usersResource);
             addUserIDP(entry[0],entry[2],usersResource);
             addUserRealmRole(entry[0],entry[3],realmResource); // todo: fix this
+            addUserClientRole(entry[0],entry[4],entry[5],realmResource);
         }
         printUserList(usersResource);
 
@@ -138,6 +139,41 @@ public class Main {
         }
     }
 
+    // todo: what to do if user not found
+    private static void addUserClientRole(String userName, String clientID, String roleName,
+                                          RealmResource realmResource) {
+        try {
+            String userID = getUserID(userName, realmResource.users());
+
+            ClientsResource clientsResource =  realmResource.clients();
+            List<ClientRepresentation> clientRepresentationList = clientsResource.findByClientId(clientID);
+
+            if(clientRepresentationList.size() > 1){ throw new Exception("more than 1 option found");
+            }else if (clientRepresentationList.size() <1){ throw new Exception("role not found");
+            }else{
+                String clientUUID = clientRepresentationList.get(0).getId();
+
+                ClientResource clientResource =  clientsResource.get(clientUUID);
+                RolesResource rolesResource = clientResource.roles();
+                List<RoleRepresentation> roleRepresentationList = rolesResource.list(roleName,true);
+                System.out.println("names of roles found");
+                for(RoleRepresentation roleRepresentation: roleRepresentationList) System.out.println("\t" + roleRepresentation.getName());
+                if(roleRepresentationList.size() >1) {
+                    throw new Exception();
+                }else if (roleRepresentationList.size() < 1){
+                    throw new Exception();
+                }else {
+                    UserResource userResource = realmResource.users().get(userID);
+                    RoleMappingResource roleMappingResource = userResource.roles();
+
+                    RoleScopeResource roleScopeResource = roleMappingResource.clientLevel(clientUUID);
+                    roleScopeResource.add(roleRepresentationList);
+                }
+            }
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+    }
     // todo: what to do if user not found
     // userinfo is: username, password, IDP, role1, role2
     private static String getUserID(String userName, UsersResource usersResource) throws Exception{
