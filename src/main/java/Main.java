@@ -70,7 +70,6 @@ public class Main {
                 user.setPassword(entry[1]);
             }
             user.addClientRoles(entry[2],entry[3]);
-            user.addClientRoles(entry[2],entry[4]);
         }
         return result;
     }
