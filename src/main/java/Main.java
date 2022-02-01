@@ -8,10 +8,15 @@ import org.keycloak.representations.idm.*;
 import javax.management.relation.Role;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import au.com.bytecode.opencsv.CSVReader;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 
 public class Main {
     public static void main(String[] args) throws Exception {
@@ -21,6 +26,7 @@ public class Main {
         String realm = "realm15";
         String clientId = "clientTest";
         String clientSecret = "246f56b4-c34e-4d09-b72b-278d33f489bb";
+        HashMap<String,User> users;
 
         Keycloak keycloak = KeycloakBuilder.builder() //
                 .serverUrl(serverUrl) //
@@ -33,17 +39,12 @@ public class Main {
         RealmResource realmResource = keycloak.realm(realm);
         UsersResource usersResource = realmResource.users();
 
-        // reading the file
-        CSVReader reader = new CSVReader(new FileReader(inputFile), ',', '"', 0);
-        List<String[]> entries = reader.readAll();
+        users = toUsers(inputFile);
 
         // todo: adding users
-        for (String[] entry : entries) {
-//            addUser(entry,usersResource);
-            setUserPassword(entry[0],entry[1],usersResource);
-            addUserIDP(entry[0],entry[2],usersResource);
-            addUserRealmRole(entry[0],entry[3],realmResource); // todo: fix this
-            addUserClientRole(entry[0],entry[4],entry[5],realmResource);
+        for (User user : users.values()) {
+//            addUser(user.getUserRepresentation(),usersResource);
+            addUserClientRoles(user,realmResource);
         }
         printUserList(usersResource);
 
@@ -53,20 +54,36 @@ public class Main {
 //        printUserList(usersResource);
     }
 
+    private static HashMap<String,User> toUsers(String inputFile) throws IOException {
+        HashMap<String,User> result = new HashMap<>();
+        CSVReader reader = new CSVReader(new FileReader(inputFile), ',', '"', 0);
+        List<String[]> entries = reader.readAll();
 
 
+        for(String[] entry:entries){
+            User user;
+            if (!result.containsKey(entry[0])){
+                user = new User(entry[0],entry[1]);
+                result.put(entry[0],user);
+            }else{
+                user = result.get(entry[0]); // todo: test if this works
+                user.setPassword(entry[1]);
+            }
+            user.addClientRoles(entry[2],entry[3]);
+            user.addClientRoles(entry[2],entry[4]);
+        }
+        return result;
+    }
 
     // todo: what to do if user is already there
-    private static void addUser(String[] userInfo, UsersResource usersResource) {
-        UserRepresentation user = new UserRepresentation();
-        user.setEnabled(true);
-        user.setUsername(userInfo[0]);
-//        user.setAttributes(Collections.singletonMap("origin", Arrays.asList("demo")));
+    // adds user to realm, and updates id value on the user's UserRepresentation
+    private static void addUser(UserRepresentation user, UsersResource usersResource) {
         try {
             Response response = usersResource.create(user);
             System.out.printf("Response: %s %s%n", response.getStatus(), response.getStatusInfo());
             System.out.println(response.getLocation());
             String userId = CreatedResponseUtil.getCreatedId(response);
+            user.setId(userId);
             System.out.printf("User created with userId: %s%n", userId);
         }catch(WebApplicationException e){
             e.printStackTrace();
@@ -85,37 +102,19 @@ public class Main {
     }
 
     // todo: what to do if user not found
-    public static void setUserPassword(String userName, String password, UsersResource usersResource) {
+    public static void setUserPassword(User user, UsersResource usersResource) {
         try{
-            String userID = getUserID(userName,usersResource);
+            String userID = getUserID(user,usersResource);
             UserResource userResource =  usersResource.get(userID);
 
             CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
             credentialRepresentation.setType(CredentialRepresentation.PASSWORD);
-            credentialRepresentation.setValue(password);
+            credentialRepresentation.setValue(user.getPassword());
 
             userResource.resetPassword(credentialRepresentation);
-            System.out.println(userName + "'s password has been reset.");
+            System.out.println(user.getUserRepresentation().getUsername() + "'s password has been reset.");
         }catch (Exception e){
-//            e.printStackTrace();
-        }
-    }
-
-    // todo: what to do if user not found
-    private static void addUserIDP(String userName, String idp, UsersResource usersResource) {
-        try{
-            String userID = getUserID(userName,usersResource);
-            UserResource userResource =  usersResource.get(userID);
-
-            FederatedIdentityRepresentation federatedIdRepresentation = new FederatedIdentityRepresentation();
-            federatedIdRepresentation.setIdentityProvider(idp);
-            federatedIdRepresentation.setUserId(userName);
-            federatedIdRepresentation.setUserName(userName);
-
-            userResource.addFederatedIdentity(idp,federatedIdRepresentation);
-            System.out.println(federatedIdRepresentation.getIdentityProvider() + " added to " + userName + "'s profile.");
-        }catch (Exception e){
-//            e.printStackTrace();
+            e.printStackTrace();
         }
     }
 
@@ -140,42 +139,55 @@ public class Main {
     }
 
     // todo: what to do if user not found
-    private static void addUserClientRole(String userName, String clientID, String roleName,
-                                          RealmResource realmResource) {
-        try {
-            String userID = getUserID(userName, realmResource.users());
+    private static void addUserClientRoles(User user, RealmResource realmResource){
+        try{//try looking for the user
+            String userID = getUserID(user, realmResource.users());
+            HashMap<String, Set<String>> clientRoles =  user.getClientRoles();
 
-            ClientsResource clientsResource =  realmResource.clients();
-            List<ClientRepresentation> clientRepresentationList = clientsResource.findByClientId(clientID);
+            for(String clientID: clientRoles.keySet()){
+                String clientUUID = getClientUUID(clientID,realmResource);
 
-            if(clientRepresentationList.size() > 1){ throw new Exception("more than 1 option found");
-            }else if (clientRepresentationList.size() <1){ throw new Exception("role not found");
-            }else{
-                String clientUUID = clientRepresentationList.get(0).getId();
+                ClientResource clientResource = realmResource.clients().get(clientUUID);
+                List<RoleRepresentation> rolesToAdd = getRolesToAdd(clientRoles.get(clientID),clientResource);
 
-                ClientResource clientResource =  clientsResource.get(clientUUID);
-                RolesResource rolesResource = clientResource.roles();
-                List<RoleRepresentation> roleRepresentationList = rolesResource.list(roleName,true);
-                System.out.println("names of roles found");
-                for(RoleRepresentation roleRepresentation: roleRepresentationList) System.out.println("\t" + roleRepresentation.getName());
-                if(roleRepresentationList.size() >1) {
-                    throw new Exception();
-                }else if (roleRepresentationList.size() < 1){
-                    throw new Exception();
-                }else {
-                    UserResource userResource = realmResource.users().get(userID);
-                    RoleMappingResource roleMappingResource = userResource.roles();
-
-                    RoleScopeResource roleScopeResource = roleMappingResource.clientLevel(clientUUID);
-                    roleScopeResource.add(roleRepresentationList);
-                }
+                UserResource userResource = realmResource.users().get(userID);
+                RoleMappingResource roleMappingResource = userResource.roles();
+                RoleScopeResource roleScopeResource = roleMappingResource.clientLevel(clientUUID);
+                roleScopeResource.add(rolesToAdd);
             }
         }catch(Exception e){
             e.printStackTrace();
         }
     }
-    // todo: what to do if user not found
-    // userinfo is: username, password, IDP, role1, role2
+
+    private static List<RoleRepresentation> getRolesToAdd(Set<String> roles, ClientResource clientResource) throws Exception {// todo: test this
+        List<RoleRepresentation> result = new ArrayList<>();
+        RolesResource rolesResource = clientResource.roles();
+        for(String roleName:roles){
+            List<RoleRepresentation> roleRepresentationList = rolesResource.list(roleName,true);
+            if(roleRepresentationList.size() > 1) throw new Exception("multiple roles with name " + roleName + " found");
+            if(roleRepresentationList.size() < 1) throw new Exception(roleName + " not found");
+            result.addAll(roleRepresentationList);
+        }
+        return result;
+    }
+    private static String getClientUUID(String clientID,RealmResource realmResource) throws Exception {
+        ClientsResource clientsResource = realmResource.clients();
+        List<ClientRepresentation> clientRepresentationList = clientsResource.findByClientId(clientID);
+        if (clientRepresentationList.size() > 1) {
+            throw new Exception("more than 1 client found");
+        } else if (clientRepresentationList.size() < 1) {
+            throw new Exception("client not found");
+        } else {
+            String clientUUID = clientRepresentationList.get(0).getId();
+            return clientUUID;
+        }
+    }
+    private static String getUserID(User user, UsersResource usersResource) throws Exception {
+        String result = user.getUserRepresentation().getId();
+        if(result != null) return result;
+        return getUserID(user.getUserRepresentation().getUsername(),usersResource);
+    }
     private static String getUserID(String userName, UsersResource usersResource) throws Exception{
         List<UserRepresentation> users = usersResource.search(userName);
         if(users.size() > 1){
@@ -186,7 +198,6 @@ public class Main {
             return users.get(0).getId();
         }
     }
-
     public static void printUserList(UsersResource usersResource) {
         List<UserRepresentation> users = usersResource.list();
         System.out.println("list of all users:");
@@ -197,4 +208,25 @@ public class Main {
             System.out.println("\t" + name + " id: " + id);
         }
     }
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
