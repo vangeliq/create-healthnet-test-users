@@ -14,10 +14,6 @@ public class User {
     private HashMap<String, Set<String>> clientRoles;
 
 
-    public User(){
-        init();
-    }
-
     public User(String username){
         init();
         userRepresentation.setUsername(username);
@@ -41,6 +37,7 @@ public class User {
     public String getPassword() {
         return password;
     }
+    public String getUsername() {return userRepresentation.getUsername();}
     public HashMap<String, Set<String>> getClientRoles() {
         return clientRoles;
     }

@@ -83,40 +83,45 @@ public class Main {
         realmResource = keycloak.realm(realm);
         usersResource = realmResource.users();
 //        users = toUsers(inputFile);
-        users = toUsersFromJSON(inputFile);
+        users = addUsersFromJSON(inputFile);
     }
 
-    private static HashMap<String,User> toUsersFromJSON(String inputFile){
-        HashMap<String,User> result = new HashMap<String, User>();
+    private static HashMap<String,User> addUsersFromJSON(String inputFile){
+        HashMap<String,User> result = new HashMap<>();
         try {
-            // create a reader
             Reader reader = Files.newBufferedReader(Paths.get(inputFile));
-            // create parser
             JsonArray parser = (JsonArray) Jsoner.deserialize(reader);
 
             parser.forEach(entry -> {
                 JsonObject jsonUser = (JsonObject) entry;
-                String username = (String) jsonUser.get("username");
-                String password = (String) jsonUser.get("password");
-                User user = new User(username,password);
+                try {
+                    User user = addUserFromJSON(jsonUser);
 
-                Map<String,JsonArray> applications = (Map<String, JsonArray>) jsonUser.get("applications");
-                applications.forEach((client, roles) -> {
-                    roles.forEach(role -> user.recordClientRoles(client, (String) role));
-                });
-
-                try{
-                    if (result.containsKey(username)) throw new Exception("duplicate username found: " + username);
-                    result.put(username,user);
-                }catch(Exception e) {e.printStackTrace();}
+                    if (result.containsKey(user.getUsername())) throw new Exception("duplicate username found: " + user.getUsername());
+                    result.put(user.getUsername(),user);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             });
-
-            //close reader
             reader.close();
+
         } catch (Exception ex) {
             ex.printStackTrace();
         }
         return result;
+    }
+
+    private static User addUserFromJSON(JsonObject jsonUser) throws Exception{
+        String username = (String) jsonUser.get("username");
+        String password = (String) jsonUser.get("password");
+        if (username == null) throw new Exception("no username");
+
+        User user = (password != null)? new User(username,password) : new User(username);
+
+        Map<String,JsonArray> applications = (Map<String, JsonArray>) jsonUser.get("applications");
+        applications.forEach((client, roles) -> roles.forEach(role -> user.recordClientRoles(client, (String) role)));
+
+        return user;
     }
 
     private static void printKeycloakUserList() {
