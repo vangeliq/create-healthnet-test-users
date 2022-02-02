@@ -46,8 +46,7 @@ public class Main {
         init();
 
         for (User user : users.values()) {
-//            deleteUserFromKeyCloak(user.getUserRepresentation().getUsername());
-            addUserToKeyCloak(user.getUserRepresentation());
+//            addUserToKeyCloak(user.getUserRepresentation());
             addUserClientRoles(user);
         }
     }

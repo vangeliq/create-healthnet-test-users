@@ -3,16 +3,16 @@
     "username": "trevor1",
     "password": "testtest123",
     "applications": {
-      "app1": ["app1_role","app1_role2"],
-      "app2": ["app2_role"]
+      "clientTest": ["clientTestAdmin","clientTestEmployee"],
+      "clientTest2": ["clientTest2Admin","clientTest2Employee","clientTest2User"]
     }
   },
   {
     "username": "trevor2",
     "password": "testtest456",
     "applications": {
-      "app1": ["app1_role","App1_role2"],
-      "app2": ["app2_role"]
+      "clientTest": ["clientTestAdmin","clientTestEmployee"],
+      "clientTest2": ["clientTest2Admin","clientTest2User"]
     }
   }
 ]
