@@ -1,3 +1,6 @@
+import com.github.cliftonlabs.json_simple.JsonArray;
+import com.github.cliftonlabs.json_simple.JsonObject;
+import com.github.cliftonlabs.json_simple.Jsoner;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
@@ -11,6 +14,8 @@ import java.io.*;
 
 import au.com.bytecode.opencsv.CSVReader;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -41,7 +46,7 @@ public class Main {
         init();
 
         for (User user : users.values()) {
-            deleteUserFromKeyCloak(user.getUserRepresentation().getUsername());
+//            deleteUserFromKeyCloak(user.getUserRepresentation().getUsername());
             addUserToKeyCloak(user.getUserRepresentation());
             addUserClientRoles(user);
         }
@@ -82,25 +87,39 @@ public class Main {
 
         realmResource = keycloak.realm(realm);
         usersResource = realmResource.users();
-        users = toUsers(inputFile);
+//        users = toUsers(inputFile);
+        users = toUsersFromJSON(inputFile);
     }
 
-    private static HashMap<String,User> toUsers(String inputFile) throws IOException {
-        HashMap<String,User> result = new HashMap<>();
-        CSVReader reader = new CSVReader(new FileReader(inputFile), ',', '"', 0);
-        List<String[]> entries = reader.readAll();
+    private static HashMap<String,User> toUsersFromJSON(String inputFile){
+        HashMap<String,User> result = new HashMap<String, User>();
+        try {
+            // create a reader
+            Reader reader = Files.newBufferedReader(Paths.get(inputFile));
+            // create parser
+            JsonArray parser = (JsonArray) Jsoner.deserialize(reader);
 
+            parser.forEach(entry -> {
+                JsonObject jsonUser = (JsonObject) entry;
+                String username = (String) jsonUser.get("username");
+                String password = (String) jsonUser.get("password");
+                User user = new User(username,password);
 
-        for(String[] entry:entries){
-            User user;
-            if (!result.containsKey(entry[0])){
-                user = new User(entry[0],entry[1]);
-                result.put(entry[0],user);
-            }else{
-                user = result.get(entry[0]); // todo: test if this works
-                user.setPassword(entry[1]);
-            }
-            user.addClientRoles(entry[2],entry[3]);
+                Map<String,JsonArray> applications = (Map<String, JsonArray>) jsonUser.get("applications");
+                applications.forEach((client, roles) -> {
+                    roles.forEach(role -> user.addClientRoles(client, (String) role));
+                });
+
+                try{
+                    if (result.containsKey(username)) throw new Exception("duplicate username found: " + username);
+                    result.put(username,user);
+                }catch(Exception e) {e.printStackTrace();}
+            });
+
+            //close reader
+            reader.close();
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
         return result;
     }
@@ -208,23 +227,3 @@ public class Main {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

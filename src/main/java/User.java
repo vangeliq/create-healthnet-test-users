@@ -32,11 +32,9 @@ public class User {
     public UserRepresentation getUserRepresentation() {
         return userRepresentation;
     }
-
     public String getPassword() {
         return password;
     }
-
     public HashMap<String, Set<String>> getClientRoles() {
         return clientRoles;
     }
@@ -44,7 +42,6 @@ public class User {
     public void setPassword(String password) {
         this.password = password;
     }
-
     public void addClientRoles(String clientName,String role){
         if (!clientRoles.containsKey(clientName)){
             clientRoles.put(clientName,new HashSet<String>());
