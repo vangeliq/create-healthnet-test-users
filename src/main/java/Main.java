@@ -39,7 +39,7 @@ public class Main {
         if (args != null && args.length != 0) {
             configPath = args[0];
         } else {
-            configPath = "C:\\Users\\valery.angelique\\IdeaProjects\\create-healthnet-test-users\\src\\main\\java\\configuration.properties";
+            configPath = "\\configuration.properties";
         }
         LOG.info(String.format("Configuration file expected at '%s'.", configPath));
 
@@ -226,3 +226,4 @@ public class Main {
         }
     }
 }
+ 
