@@ -7,49 +7,81 @@ import org.keycloak.representations.idm.*;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
-import java.io.FileReader;
+import java.io.*;
+
 import au.com.bytecode.opencsv.CSVReader;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.logging.Logger;
 
 public class Main {
+    private static String configPath;
+
+    private static String inputFile;
+    private static String serverURL;
+    private static String realm;
+    private static String clientID;
+    private static String clientSecret;
+
+    private static Keycloak keycloak;
+    // private static RealmResource realmResource;
+    // private static UsersResource usersResource;
+
+    private static final Logger LOG = Logger.getLogger(Main.class.getName());
+
     public static void main(String[] args) throws Exception {
-        // todo: turn these into arguments.
-        String inputFile = "C:\\Users\\valery.angelique\\IdeaProjects\\create-healthnet-test-users\\src\\main\\java\\data\\input.csv";
-        String serverUrl = "http://localhost:8080/auth";
-        String realm = "realm15";
-        String clientId = "clientTest";
-        String clientSecret = "246f56b4-c34e-4d09-b72b-278d33f489bb";
-        HashMap<String,User> users;
+        if (args != null && args.length != 0) {
+            configPath = args[0];
+        } else {
+            configPath = "C:\\Users\\valery.angelique\\IdeaProjects\\create-healthnet-test-users\\src\\main\\java\\configuration.properties";
+        }
+        LOG.info(String.format("Configuration file expected at '%s'.", configPath));
 
-        Keycloak keycloak = KeycloakBuilder.builder() //
-                .serverUrl(serverUrl) //
-                .realm(realm) //
-                .grantType(OAuth2Constants.CLIENT_CREDENTIALS) //
-                .clientId(clientId) //
-                .clientSecret(clientSecret) //
-                .build();
-
+        Keycloak keycloak = init();
+        HashMap<String,User> users = toUsers(inputFile);
         RealmResource realmResource = keycloak.realm(realm);
         UsersResource usersResource = realmResource.users();
 
-        users = toUsers(inputFile);
-
-        // todo: adding users
         for (User user : users.values()) {
-//            addUser(user.getUserRepresentation(),usersResource);
+//            deleteUserFromKeyCloak(user.getUserRepresentation().getUsername(),usersResource);
+            addUserToKeyCloak(user.getUserRepresentation(),usersResource);
             addUserClientRoles(user,realmResource);
         }
         printUserList(usersResource);
+    }
 
+    private static Keycloak init() throws IOException {
+        Properties configProperties = new Properties();
+        File file = new File(configPath);
 
-        //todo: deleting users
-//        for (String[] row: allRows) deleteUser(entry[0], usersResource);
-//        printUserList(usersResource);
+        InputStream inputStream;
+        if (file.exists()) {
+            inputStream = new FileInputStream(file);
+        } else {
+            inputStream = Main.class.getResourceAsStream(configPath);
+        }
+        Objects.requireNonNull(inputStream, String.format("Configuration file not found at '%s'.", configPath));
+        configProperties.load(inputStream);
+
+        inputFile = configProperties.getProperty("inputFile");
+        checkMandatory(inputFile);
+        serverURL = configProperties.getProperty("serverURL");
+        checkMandatory(serverURL);
+        realm = configProperties.getProperty("realm");
+        checkMandatory(realm);
+        clientID = configProperties.getProperty("clientID");
+        checkMandatory(clientID);
+        clientSecret = configProperties.getProperty("clientSecret");
+        checkMandatory(clientSecret);
+
+        return KeycloakBuilder.builder() //
+                .serverUrl(serverURL) //
+                .realm(realm) //
+                .grantType(OAuth2Constants.CLIENT_CREDENTIALS) //
+                .clientId(clientID) //
+                .clientSecret(clientSecret) //
+                .build();
+
     }
 
     private static HashMap<String,User> toUsers(String inputFile) throws IOException {
@@ -94,7 +126,7 @@ public class Main {
             userID = getUserID(userName, usersResource);
             usersResource.delete(userID);
         } catch (Exception e) {
-//            e.printStackTrace();
+            e.printStackTrace();
         }
     }
 
@@ -169,6 +201,12 @@ public class Main {
         }
     }
 
+
+    private static void checkMandatory(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(String.format("Value is mandatory but was '%s'.", value));
+        }
+    }
 }
 
 
