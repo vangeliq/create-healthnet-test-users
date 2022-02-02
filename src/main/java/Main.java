@@ -24,8 +24,9 @@ public class Main {
     private static String clientSecret;
 
     private static Keycloak keycloak;
-    // private static RealmResource realmResource;
-    // private static UsersResource usersResource;
+    private static RealmResource realmResource;
+    private static UsersResource usersResource;
+    private static HashMap<String,User> users;
 
     private static final Logger LOG = Logger.getLogger(Main.class.getName());
 
@@ -37,20 +38,16 @@ public class Main {
         }
         LOG.info(String.format("Configuration file expected at '%s'.", configPath));
 
-        Keycloak keycloak = init();
-        HashMap<String,User> users = toUsers(inputFile);
-        RealmResource realmResource = keycloak.realm(realm);
-        UsersResource usersResource = realmResource.users();
+        init();
 
         for (User user : users.values()) {
-//            deleteUserFromKeyCloak(user.getUserRepresentation().getUsername(),usersResource);
-            addUserToKeyCloak(user.getUserRepresentation(),usersResource);
-            addUserClientRoles(user,realmResource);
+            deleteUserFromKeyCloak(user.getUserRepresentation().getUsername());
+            addUserToKeyCloak(user.getUserRepresentation());
+            addUserClientRoles(user);
         }
-        printUserList(usersResource);
     }
 
-    private static Keycloak init() throws IOException {
+    private static void init() throws IOException {
         Properties configProperties = new Properties();
         File file = new File(configPath);
 
@@ -74,7 +71,8 @@ public class Main {
         clientSecret = configProperties.getProperty("clientSecret");
         checkMandatory(clientSecret);
 
-        return KeycloakBuilder.builder() //
+
+        keycloak =  KeycloakBuilder.builder() //
                 .serverUrl(serverURL) //
                 .realm(realm) //
                 .grantType(OAuth2Constants.CLIENT_CREDENTIALS) //
@@ -82,6 +80,9 @@ public class Main {
                 .clientSecret(clientSecret) //
                 .build();
 
+        realmResource = keycloak.realm(realm);
+        usersResource = realmResource.users();
+        users = toUsers(inputFile);
     }
 
     private static HashMap<String,User> toUsers(String inputFile) throws IOException {
@@ -104,9 +105,8 @@ public class Main {
         return result;
     }
 
-    // todo: what to do if user is already there
     // adds user to realm, and updates id value on the user's UserRepresentation
-    private static void addUserToKeyCloak(UserRepresentation user, UsersResource usersResource) {
+    private static void addUserToKeyCloak(UserRepresentation user) {
         try {
             Response response = usersResource.create(user);
             System.out.printf("Response: %s %s%n", response.getStatus(), response.getStatusInfo());
@@ -120,10 +120,9 @@ public class Main {
     }
 
     // todo: should throw exception instead? should it ignore if not found?
-    private static void deleteUserFromKeyCloak(String userName, UsersResource usersResource) {
-        String userID;
+    private static void deleteUserFromKeyCloak(String userName) {
         try {
-            userID = getUserID(userName, usersResource);
+            String userID = getUserID(userName);
             usersResource.delete(userID);
         } catch (Exception e) {
             e.printStackTrace();
@@ -131,13 +130,13 @@ public class Main {
     }
 
     // todo: what to do if user not found
-    private static void addUserClientRoles(User user, RealmResource realmResource){
+    private static void addUserClientRoles(User user){
         try{//try looking for the user
-            String userID = getUserID(user, realmResource.users());
+            String userID = getUserID(user);
             HashMap<String, Set<String>> clientRoles =  user.getClientRoles();
 
             for(String clientID: clientRoles.keySet()){
-                String clientUUID = getClientUUID(clientID,realmResource);
+                String clientUUID = getClientUUID(clientID);
 
                 ClientResource clientResource = realmResource.clients().get(clientUUID);
                 List<RoleRepresentation> rolesToAdd = getRolesToAdd(clientRoles.get(clientID),clientResource);
@@ -163,7 +162,7 @@ public class Main {
         }
         return result;
     }
-    private static String getClientUUID(String clientID,RealmResource realmResource) throws Exception {
+    private static String getClientUUID(String clientID) throws Exception {
         ClientsResource clientsResource = realmResource.clients();
         List<ClientRepresentation> clientRepresentationList = clientsResource.findByClientId(clientID);
         if (clientRepresentationList.size() > 1) {
@@ -175,12 +174,13 @@ public class Main {
             return clientUUID;
         }
     }
-    private static String getUserID(User user, UsersResource usersResource) throws Exception {
+
+    private static String getUserID(User user) throws Exception {
         String result = user.getUserRepresentation().getId();
         if(result != null) return result;
-        return getUserID(user.getUserRepresentation().getUsername(),usersResource);
+        return getUserID(user.getUserRepresentation().getUsername());
     }
-    private static String getUserID(String userName, UsersResource usersResource) throws Exception{
+    private static String getUserID(String userName) throws Exception{
         List<UserRepresentation> users = usersResource.search(userName);
         if(users.size() > 1){
             throw new Exception("error: more than 1 user found");
@@ -190,7 +190,8 @@ public class Main {
             return users.get(0).getId();
         }
     }
-    private static void printUserList(UsersResource usersResource) {
+
+    private static void printUserList() {
         List<UserRepresentation> users = usersResource.list();
         System.out.println("list of all users:");
 
@@ -200,7 +201,6 @@ public class Main {
             System.out.println("\t" + name + " id: " + id);
         }
     }
-
 
     private static void checkMandatory(String value) {
         if (value == null || value.isBlank()) {
