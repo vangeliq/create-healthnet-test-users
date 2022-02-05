@@ -34,7 +34,7 @@ public class Main {
         if (args != null && args.length != 0) {
             configPath = args[0];
         } else {
-            configPath = "\\configuration.properties";
+            configPath = "C:\\Users\\Valery\\Documents\\GitHub\\create-healthnet-test-users\\src\\main\\java\\configuration.properties";
         }
         LOG.info(String.format("Configuration file expected at '%s'.", configPath));
 
@@ -62,6 +62,7 @@ public class Main {
 
         inputFile = configProperties.getProperty("inputFile");
         checkMandatory(inputFile);
+        inputFile = "C:\\Users\\Valery\\Documents\\GitHub\\create-healthnet-test-users\\src\\main\\java\\data\\input.json";
         serverURL = configProperties.getProperty("serverURL");
         checkMandatory(serverURL);
         realm = configProperties.getProperty("realm");
