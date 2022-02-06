@@ -8,24 +8,54 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.util.*;
 
+/*
+Model - User.java: represents the data for a single user,
+with no logic attached.
+
+The model's job is to simply manage the data.
+ Whether the data is from a database, API, or a JSON object,
+ the model is responsible for managing it.
+
+https://stackoverflow.com/questions/26396313/functions-in-mvc-model-class
+
+
+An MVC model contains all of your application logic that is not contained in a view or a controller.
+The model should contain all of your application business logic, validation logic, and database access logic.
+For example, if you are using the Microsoft Entity Framework to access your database,
+then you would create your Entity Framework classes (your .edmx file) in the Models folder.
+
+A view should contain only logic related to generating the user interface.
+A controller should only contain the bare minimum of logic required to return the right view or redirect the user
+ to another action (flow control). Everything else should be contained in the model.
+
+In general, you should strive for fat models and skinny controllers.
+Your controller methods should contain only a few lines of code.
+If a controller action gets too fat, then you should consider moving the logic out to a new class in the Models folder.
+
+Note that models only care about the data they manage.
+Models do not render that data to the screen, nor do they handle saving that data to some kind of persistent data store.
+Their only concern is enforcing the application's rules regarding changes to those data,
+and notifying anyone who cares about changes to that data.
+Models are the most narcissistic of objects: they only know and care about about themselves.
+* */
+
 public class User {
     private UserRepresentation userRepresentation;
     private String password;
     private HashMap<String, Set<String>> clientRoles;
 
-
-    public User(String username){
+    public User(String username) {
         init();
         userRepresentation.setUsername(username);
     }
 
-    public User(String username,String password){
+    public User(String username, String password) {
         init();
         userRepresentation.setUsername(username);
         this.password = password;
     }
 
-    public void init(){
+    public void init() {
         userRepresentation = new UserRepresentation();
         userRepresentation.setEnabled(true);
         clientRoles = new HashMap<>();
@@ -34,114 +64,38 @@ public class User {
     public UserRepresentation getUserRepresentation() {
         return userRepresentation;
     }
+
     public String getPassword() {
         return password;
     }
-    public String getUsername() {return userRepresentation.getUsername();}
+
+    public String getUsername() {
+        return userRepresentation.getUsername();
+    }
+
+    public Set<String> getClientIDs(){
+        return clientRoles.keySet();
+    }
+
+    public Set<String> getClientRoles(String clientID){
+        return clientRoles.get(clientID);
+    }
+
     public HashMap<String, Set<String>> getClientRoles() {
         return clientRoles;
     }
 
+
+
     public void setPassword(String password) {
         this.password = password;
     }
-    public void recordClientRoles(String clientName,String role){
-        if (!clientRoles.containsKey(clientName)){
-            clientRoles.put(clientName,new HashSet<String>());
+
+    public void recordClientRoles(String clientName, String role) {
+        if (!clientRoles.containsKey(clientName)) {
+            clientRoles.put(clientName, new HashSet<String>());
         }
         clientRoles.get(clientName).add(role);
     }
-
-
-
-    // keycloak methods
-
-    public void addToKeyCloak(UsersResource usersResource) {
-        try {
-            Response response = usersResource.create(userRepresentation);
-            System.out.printf("Response: %s %s%n", response.getStatus(), response.getStatusInfo());
-            System.out.println(response.getLocation());
-            String userId = CreatedResponseUtil.getCreatedId(response);
-            userRepresentation.setId(userId);
-            System.out.printf("User created with userId: %s%n", userId);
-        }catch(WebApplicationException e){
-            e.printStackTrace();
-        }
-    }
-
-    public void deleteFromKeycloak(UsersResource usersResource) {
-        try {
-            String userID = getUserID(usersResource);
-            usersResource.delete(userID);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public String getUserID(UsersResource usersResource) throws Exception {
-        String result = userRepresentation.getId();
-        if (result != null) return result;
-
-        List<UserRepresentation> users = usersResource.search(userRepresentation.getUsername());
-        if (users.size() > 1) {
-            throw new Exception("error: more than 1 user found");
-        } else if (users.size() == 0) {
-            throw new Exception("no users with that username found");
-        } else {
-            return users.get(0).getId();
-        }
-    }
-
-    public void addClientRolesInKeyCloak(RealmResource realmResource) {
-        try{//try looking for the user
-            String userID = getUserID(realmResource.users());
-            for(String clientID: clientRoles.keySet()){
-                try {
-                    String clientUUID = getClientUUID(clientID, realmResource);
-
-                    ClientResource clientResource = realmResource.clients().get(clientUUID);
-                    List<RoleRepresentation> rolesToAdd = getRolesToAdd(clientRoles.get(clientID),clientResource);
-
-                    UserResource userResource = realmResource.users().get(userID);
-                    RoleScopeResource roleScopeResource = userResource.roles().clientLevel(clientUUID);
-
-                    roleScopeResource.add(rolesToAdd);
-                } catch (Exception e){
-                    e.printStackTrace();
-                }
-            }
-        }catch(Exception e){
-            e.printStackTrace();
-        }
-    }
-
-    private static String getClientUUID(String clientID,RealmResource realmResource) throws Exception {
-        ClientsResource clientsResource = realmResource.clients();
-        List<ClientRepresentation> clientRepresentationList = clientsResource.findByClientId(clientID);
-        if (clientRepresentationList.size() > 1) {
-            throw new Exception("more than 1 client found");
-        } else if (clientRepresentationList.size() < 1) {
-            throw new Exception("client not found");
-        } else {
-            String clientUUID = clientRepresentationList.get(0).getId();
-            return clientUUID;
-        }
-    }
-
-    private static List<RoleRepresentation> getRolesToAdd(Set<String> roles, ClientResource clientResource){// todo: test this
-        List<RoleRepresentation> result = new ArrayList<>();
-        RolesResource rolesResource = clientResource.roles();
-        for(String roleName:roles){
-            try {
-                List<RoleRepresentation> roleRepresentationList = rolesResource.list(roleName, true);
-                if (roleRepresentationList.size() > 1)
-                    throw new Exception("multiple roles with name " + roleName + " found");
-                if (roleRepresentationList.size() < 1) throw new Exception(roleName + " not found");
-                result.addAll(roleRepresentationList);
-            } catch (Exception e){
-                e.printStackTrace();
-            }
-        }
-        return result;
-    }
 }
+
