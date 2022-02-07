@@ -15,6 +15,7 @@ public class Main {
     private static final Logger LOG = Logger.getLogger(Main.class.getName());
 
     public static void main(String[] args) throws Exception {
+        // set up the path to the configuration.properties file
         if (args != null && args.length != 0) {
             configPath = args[0];
         } else {
@@ -22,15 +23,19 @@ public class Main {
         }
         LOG.info(String.format("Configuration file expected at '%s'.", configPath));
 
+        // initializes the userService
         userService = new UserService(configPath);
 
-
-
+        // keycloak actions here
         userService.addAllToKeyCloak();
         userService.addAllClientRolesInKeyCloak();
 //        userService.deleteAllFromKeyCloak();
     }
 
+    /**
+     * prints all the usernames of the users in that realm
+     * @param usersResource
+     */
     private static void printKeycloakUserList(UsersResource usersResource) {
         List<UserRepresentation> users = usersResource.list();
         System.out.println("list of all users:");

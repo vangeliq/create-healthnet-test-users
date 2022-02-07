@@ -8,20 +8,21 @@ public class UserList implements Iterable<User> {
 
     private static HashMap<String,User> users;
 
+    /**
+     * constructor
+     */
     public UserList() {
         users = new HashMap<>();
     }
 
-    public static HashMap<String, User> getUsers() {
+    // GETTERS
+    public  HashMap<String, User> getUsers() {
         return users;
     }
 
+    // SETTERS
     public void addUser(User user) {
             users.put(user.getUsername(),user);
-    }
-
-    public boolean contains(String username){
-        return users.containsKey(username);
     }
 
     public void removeUser(User user){
@@ -31,6 +32,16 @@ public class UserList implements Iterable<User> {
             System.out.println("No user with that username found");
         }
     }
+
+
+    /**
+     * @param username
+     * @return true if userList has the specified user
+     */
+    public boolean contains(String username){
+        return users.containsKey(username);
+    }
+
 
     @Override
     public Iterator<User> iterator() {
